@@ -107,19 +107,12 @@ APP_SOURCES := $(shell find src -name "*.c")
 # Application header files
 APP_HEADERS := $(shell find inc -name "*.h")
 
-#
-LIB_SOURCES :=
-LIB_HEADERS :=
-
 # Source files
 SRC_FILES   += \
     $(ASM_SOURCES) \
     $(SDK_SOURCES) \
     $(APP_SOURCES) \
     $(LIB_SOURCES)
-
-#
-LIB_FILES   :=
 
 ###############################################################################
 ## Include paths
@@ -213,10 +206,10 @@ LDFLAGS  := \
     --specs=nano.specs
 
 # Heap and stack allocation related defines
-$(TARGET): CFLAGS += -D__HEAP_SIZE=$(HEAP_SIZE)
-$(TARGET): CFLAGS += -D__STACK_SIZE=$(STACK_SIZE)
-$(TARGET): ASMFLAGS += -D__HEAP_SIZE=$(HEAP_SIZE)
-$(TARGET): ASMFLAGS += -D__STACK_SIZE=$(STACK_SIZE)
+CFLAGS += -D__HEAP_SIZE=$(HEAP_SIZE)
+CFLAGS += -D__STACK_SIZE=$(STACK_SIZE)
+ASMFLAGS += -D__HEAP_SIZE=$(HEAP_SIZE)
+ASMFLAGS += -D__STACK_SIZE=$(STACK_SIZE)
 
 # Add standard libraries at the very end of the linker input, after all objects
 # that may need symbols provided by these libraries.
@@ -226,15 +219,120 @@ LIB_FILES += -lc -lnosys -lm
 ## Build Targets
 ###############################################################################
 
-# Default target
-default: $(TARGET)
+# Default target (uses nRF5 SDK's Makefile.common)
+default: $(PROJECT_NAME)
 
 TEMPLATE_PATH := $(SDK_ROOT)/components/toolchain/gcc
 
 include $(TEMPLATE_PATH)/Makefile.common
 
-$(call define_target, $(TARGET))
+$(call define_target, $(PROJECT_NAME))
 
+###############################################################################
+## Release generation targets
+###############################################################################
+
+# Only generate releases and DFU packages when SoftDevice is defined.
+ifdef SOFTDEVICE
+
+# Lower-case target and SoftDevice
+TARGET_LC      := $(shell echo $(TARGET) | tr '[:upper:]' '[:lower:]')
+SOFTDEVICE_LC  := $(shell echo $(SOFTDEVICE) | tr '[:upper:]' '[:lower:]')
+
+# Find DFU bootloader and SoftDevice .hex files
+BOOTLOADER_HEX := $(shell find dfu -name "$(TARGET_LC)_$(SOFTDEVICE_LC).hex")
+SOFTDEVICE_HEX := $(shell find $(SDK_ROOT)/components/softdevice/$(SOFTDEVICE_LC)/hex -name "*.hex")
+
+# Determine family parameter for nrfutil settings file generation
+ifeq ($(TARGET), nRF52810_xxAA)
+    FAMILY := NRF52810
+else ifeq ($(TARGET), nRF52840_xxAA)
+    FAMILY := NRF52840
+else ifeq ($(findstring nRF51, $(TARGET)), nRF51)
+    FAMILY := NRF51
+else ifeq ($(findstring nRF52, $(TARGET)), nRF52)
+    FAMILY := NRF52
+else
+    $(error Unknown device or device family! $(TARGET))
+endif
+
+# Determine hw_version parameter for nrfutil package generation
+ifeq ($(findstring nRF51, $(TARGET)), nRF51)
+    HW_VERSION := 51
+else ifeq ($(findstring nRF52, $(TARGET)), nRF52)
+    HW_VERSION := 52
+else
+    $(error Target is invalid!)
+endif
+
+# Determine sd_req parameter for nrfutil package generation
+ifeq ($(SOFTDEVICE), S112)
+    SD_REQ := 0xB8
+else ifeq ($(TARGET), S132)
+    SD_REQ := 0xB7
+else ifeq ($(TARGET), S140)
+    SD_REQ := 0xB6
+else
+    $(error Unknown device or device family! $(TARGET))
+endif
+
+# Private key passed as key_file parameter for nrfutil package generation
+PRIVATE_KEY := dfu/keys/private.key
+
+# Generate release .hex file with: SoftDevice + Application + Settings + DFU bootloader
+generate_release: default $(BOOTLOADER_HEX) | $(RELEASE_DIRECTORY)
+	@echo Generating application settings file
+	$(AT)nrfutil settings generate --family $(FAMILY) --application $(OUTPUT_DIRECTORY)/$(PROJECT_NAME).hex --application-version $(APP_VERSION) --bootloader-version 1 --bl-settings-version 1 $(RELEASE_DIRECTORY)/$(PROJECT_NAME)-settings.hex
+	@echo Merging SoftDevice and DFU bootloader files
+	$(AT)mergehex -m $(SOFTDEVICE_HEX) $(BOOTLOADER_HEX) -o $(RELEASE_DIRECTORY)/$(PROJECT_NAME)-sd-dfu.hex
+	@echo Merging application and settings files
+	$(AT)mergehex -m $(OUTPUT_DIRECTORY)/$(PROJECT_NAME).hex $(RELEASE_DIRECTORY)/$(PROJECT_NAME)-settings.hex -o $(RELEASE_DIRECTORY)/$(PROJECT_NAME)-app-settings.hex
+	@echo Generating release .hex file
+	$(AT)mergehex -m $(RELEASE_DIRECTORY)/$(PROJECT_NAME)-sd-dfu.hex $(RELEASE_DIRECTORY)/$(PROJECT_NAME)-app-settings.hex -o $(RELEASE_DIRECTORY)/$(PROJECT_NAME)-release.hex
+	@echo Removing temporary .hex files
+	$(AT)rm -rf $(RELEASE_DIRECTORY)/$(PROJECT_NAME)-settings.hex $(RELEASE_DIRECTORY)/$(PROJECT_NAME)-sd-dfu.hex $(RELEASE_DIRECTORY)/$(PROJECT_NAME)-app-settings.hex
+
+# Generate dfu package .zip file with: Application + Settings
+generate_dfu_package: $(OUTPUT_DIRECTORY)/$(PROJECT_NAME).hex | $(RELEASE_DIRECTORY)
+	@echo Generating DFU package file
+	$(AT)nrfutil pkg generate --application $(OUTPUT_DIRECTORY)/$(PROJECT_NAME).hex --application-version $(APP_VERSION) --hw-version $(HW_VERSION) --sd-req $(SD_REQ) --key-file $(PRIVATE_KEY) $(RELEASE_DIRECTORY)/$(PROJECT_NAME)-dfu-package.zip
+
+# Flash release .hex file
+flash_release: generate_release
+	@echo Flashing: $(RELEASE_DIRECTORY)/$(PROJECT_NAME)-sd-dfu.hex
+	$(AT)nrfjprog -f $(DEVICE_FAMILY) --halt
+	$(AT)nrfjprog -f $(DEVICE_FAMILY) --reset
+	$(AT)nrfjprog -f $(DEVICE_FAMILY) --program $(RELEASE_DIRECTORY)/$(PROJECT_NAME)-release.hex --chiperase
+	$(AT)nrfjprog -f $(DEVICE_FAMILY) --reset
+
+# Generate release directory
+$(RELEASE_DIRECTORY):
+	@echo Creating release directory
+	$(AT)mkdir -p $@
+
+else
+
+generate_release:
+	@echo SoftDevice is undefined!
+
+generate_dfu_package:
+	@echo SoftDevice is undefined!
+
+flash_release:
+	@echo SoftDevice is undefined!
+
+endif
+
+# Remove release folder
+clean_release:
+	@echo Removing release folder
+	$(AT)rm -rf release
+
+###############################################################################
+## Device operations targets
+###############################################################################
+
+# Determine device family for nrfjprog.
 ifeq ($(findstring nRF51, $(TARGET)), nRF51)
     DEVICE_FAMILY := NRF51
 else ifeq ($(findstring nRF52, $(TARGET)), nRF52)
@@ -243,23 +341,16 @@ else
     DEVICE_FAMILY := UNKNOWN
 endif
 
-###############################################################################
-## Auxiliary targets
-###############################################################################
-
-# Flash the program
+# Flash application
 flash: default
-	@echo Flashing: $(OUTPUT_DIRECTORY)/$(TARGET).hex
+	@echo Flashing: $(OUTPUT_DIRECTORY)/$(PROJECT_NAME).hex
 	$(AT)nrfjprog -f $(DEVICE_FAMILY) --halt
 	$(AT)nrfjprog -f $(DEVICE_FAMILY) --reset
-	$(AT)nrfjprog -f $(DEVICE_FAMILY) --program $(OUTPUT_DIRECTORY)/$(TARGET).hex --sectorerase
+	$(AT)nrfjprog -f $(DEVICE_FAMILY) --program $(OUTPUT_DIRECTORY)/$(PROJECT_NAME).hex --sectorerase
 	$(AT)nrfjprog -f $(DEVICE_FAMILY) --reset
 
-# Flash softdevice
+# Flash SoftDevice
 ifdef SOFTDEVICE
-
-SOFTDEVICE_LC  := $(shell echo $(SOFTDEVICE) | tr '[:upper:]' '[:lower:]')
-SOFTDEVICE_HEX := $(shell find $(SDK_ROOT)/components/softdevice/$(SOFTDEVICE_LC)/hex -name "*.hex")
 
 flash_softdevice:
 	@echo Flashing: SoftDevice $(SOFTDEVICE)
@@ -275,16 +366,22 @@ flash_softdevice:
 
 endif
 
+# Erase device flash memory
 erase:
 	@echo Erasing flash memory
 	$(AT)nrfjprog -f $(DEVICE_FAMILY) --halt
 	$(AT)nrfjprog -f $(DEVICE_FAMILY) --reset
 	$(AT)nrfjprog -f $(DEVICE_FAMILY) --eraseall
 
+# Reset device
 reset:
 	@echo Resetting target
 	$(AT)nrfjprog -f $(DEVICE_FAMILY) --halt
 	$(AT)nrfjprog -f $(DEVICE_FAMILY) --reset
+
+###############################################################################
+## Auxiliary targets
+###############################################################################
 
 SDK_CONFIG_FILE := ./inc/config/sdk_config.h
 CMSIS_CONFIG_TOOL := $(SDK_ROOT)/external_tools/cmsisconfig/CMSIS_Configuration_Wizard.jar
@@ -396,5 +493,8 @@ prepare: $(VS_LAUNCH_FILE) $(VS_C_CPP_PROPERTIES_FILE)
 -include $(wildcard $(OUTPUT_DIRECTORY)/**/*.d)
 
 .PHONY: \
-	default flash flash_softdevice erase reset sdk_config prepare format help \
+	default \
+	generate_release generate_dfu_package \
+	flash flash_softdevice flash_release erase reset \
+	sdk_config prepare format help \
 	vs_files

@@ -41,7 +41,7 @@ static void led_toggle_task_function(void *p_parameter)
     {
         nrf_gpio_pin_toggle(7);
 
-        vTaskDelay(pdMS_TO_TICKS(200));
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
 

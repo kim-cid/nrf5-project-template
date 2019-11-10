@@ -3,9 +3,12 @@
 # 11/2019
 
 # Project information
-PROJECT_NAME     := $(notdir $(CURDIR))
-TARGET           := nRF52810_xxAA
-OUTPUT_DIRECTORY := build
+PROJECT_NAME      := $(notdir $(CURDIR))
+TARGET            := nRF52810_xxAA
+OUTPUT_DIRECTORY  := build
+RELEASE_DIRECTORY := release
+
+APP_VERSION       ?= 1
 
 # Link descriptor file
 LINKER_SCRIPT := $(PROJECT_NAME)-$(TARGET).ld

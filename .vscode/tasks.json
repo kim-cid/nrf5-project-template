@@ -75,6 +75,39 @@
                 "Flash Program",
             ],
             "problemMatcher": [],
+        },
+        {
+            "label": "Generate Release",
+            "type": "shell",
+            "command": "make clean && make clean_release && make && make generate_release SOFTDEVICE=S112",
+            "group": "build",
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            },
+            "problemMatcher": [],
+        },
+        {
+            "label": "Generate DFU package",
+            "type": "shell",
+            "command": "make generate_dfu_package SOFTDEVICE=S112",
+            "group": "build",
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            },
+            "problemMatcher": [],
+        },
+        {
+            "label": "Flash Release",
+            "type": "shell",
+            "command": "make flash_release SOFTDEVICE=S112",
+            "group": "build",
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            },
+            "problemMatcher": [],
         }
     ]
 }

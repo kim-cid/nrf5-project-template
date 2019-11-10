@@ -50,7 +50,7 @@ LINKER_SCRIPT := $(PROJECT_NAME)-$(TARGET).ld # Named "nrf5-project-template-nRF
 
 If a SoftDevice is going to be used in the project, it can be defined here. Elsewise, this configuration must be **commented out**.
 
-On SDK version **15.3.0**, the SoftDevices compatible with this configuration are: **S112**, **S113**, **S132**, **S140**, **S212**, **S312**, **S332** and **S340**.
+On SDK version **15.3.0**, the SoftDevices compatible with this configuration are: **S112**, **S132** and **S140**.
 
 ```Makefile
 # SoftDevice
