@@ -26,7 +26,7 @@ endif
 
 # Optimization setting
 ifeq ($(DEBUG), 1)
-    OPT := -Og -O3
+    OPT := -Og -g3
 else
     OPT := -Os
     # OPT += -flto
@@ -425,21 +425,39 @@ NULL  :=
 SPACE := $(NULL) #
 COMMA := ,
 
+# Determine the .svd file for the processor
+ifeq ($(TARGET), nRF52810_xxAA)
+    SVD := $(SDK_ROOT)/modules/nrfx/mdk/nrf52810.svd
+else ifeq ($(TARGET), nRF52811_xxAA)
+    SVD := $(SDK_ROOT)/modules/nrfx/mdk/nrf52811.svd
+else ifeq ($(TARGET), nRF52840_xxAA)
+    SVD := $(SDK_ROOT)/modules/nrfx/mdk/nrf52840.svd
+else ifeq ($(findstring nRF51, $(TARGET)), nRF51)
+    SVD := $(SDK_ROOT)/modules/nrfx/mdk/nrf51.svd
+else ifeq ($(findstring nRF52, $(TARGET)), nRF52)
+    SVD := $(SDK_ROOT)/modules/nrfx/mdk/nrf52.svd
+else
+    $(error Unknown device or device family! $(TARGET))
+endif
+
 define VS_LAUNCH
 {
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Cortex Debug (J-Link)",
             "type": "cortex-debug",
             "request": "launch",
             "servertype": "jlink",
-            "cwd": "$${workspaceRoot}",
-            "executable": "./$(OUTPUT_DIRECTORY)/$(TARGET).out",
-            "name": "Cortex Debug (J-Link)",
-            "device": "$(TARGET)",
             "interface": "swd",
+            "ipAddress": null,
+            "serialNumber": null
+            "executable": "./$(OUTPUT_DIRECTORY)/$(PROJECT_NAME).out",
+            "device": "$(TARGET)",
+            "svdFile": "$(SVD)",
+            "cwd": "$${workspaceRoot}",
             "runToMain": true,
-            "rtos": "FreeRTOS",
+            "rtos": "FreeRTOS"
         }
     ]
 }
@@ -494,7 +512,7 @@ prepare: $(VS_LAUNCH_FILE) $(VS_C_CPP_PROPERTIES_FILE)
 
 .PHONY: \
 	default \
-	generate_release generate_dfu_package \
-	flash flash_softdevice flash_release erase reset \
-	sdk_config prepare format help \
-	vs_files
+	generate_release generate_dfu_package flash_release \
+	flash flash_softdevice erase reset \
+	sdk_config format help \
+	vs_files prepare
