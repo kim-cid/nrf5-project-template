@@ -73,27 +73,13 @@ else
 endif
 
 SDK_SOURCES += \
-    $(SDK_ROOT)/components/libraries/util/app_util_platform.c \
-    $(SDK_ROOT)/external/freertos/portable/CMSIS/nrf52/port_cmsis.c \
-    $(SDK_ROOT)/external/freertos/portable/CMSIS/nrf52/port_cmsis_systick.c \
-    $(SDK_ROOT)/external/freertos/portable/GCC/nrf52/port.c \
-    $(SDK_ROOT)/external/freertos/source/list.c \
-    $(SDK_ROOT)/external/freertos/source/tasks.c \
-    $(SDK_ROOT)/integration/nrfx/legacy/nrf_drv_clock.c \
-    $(SDK_ROOT)/modules/nrfx/drivers/src/nrfx_clock.c
 
 # SDK header folders
 SDK_HEADERS_FOLDERS := \
     $(SDK_ROOT)/components/drivers_nrf/nrf_soc_nosd \
-    $(SDK_ROOT)/components/libraries/experimental_section_vars \
-    $(SDK_ROOT)/components/libraries/log \
-    $(SDK_ROOT)/components/libraries/log/src \
+    $(SDK_ROOT)/components/libraries/delay \
     $(SDK_ROOT)/components/libraries/util \
     $(SDK_ROOT)/components/toolchain/cmsis/include \
-    $(SDK_ROOT)/external/freertos/config \
-    $(SDK_ROOT)/external/freertos/portable/CMSIS/nrf52 \
-    $(SDK_ROOT)/external/freertos/portable/GCC/nrf52 \
-    $(SDK_ROOT)/external/freertos/source/include \
     $(SDK_ROOT)/integration/nrfx \
     $(SDK_ROOT)/integration/nrfx/legacy \
     $(SDK_ROOT)/modules/nrfx \
@@ -134,7 +120,6 @@ DEVICE := $(shell echo $(TARGET) | tr '[:lower:]' '[:upper:]')
 # C defines
 C_DEFS   := \
     -DCONFIG_GPIO_AS_PINRESET \
-    -DFREERTOS \
     -D$(DEVICE)
 
 # Family specific defines (nRF51 / nRF52)

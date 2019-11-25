@@ -3,10 +3,18 @@
 SEARCH_DIR(.)
 GROUP(-lgcc -lc -lnosys)
 
+/*
 MEMORY
 {
   FLASH (rx) : ORIGIN = 0x0 + 100K, LENGTH = 192K - 100K
   RAM (rwx) :  ORIGIN = 0x20000000 + 3768, LENGTH = 24K - 3768
+}
+*/
+
+MEMORY
+{
+  FLASH (rx) : ORIGIN = 0x0, LENGTH = 192K
+  RAM (rwx) :  ORIGIN = 0x20000000, LENGTH = 24K
 }
 
 SECTIONS
